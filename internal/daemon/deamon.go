@@ -1,12 +1,12 @@
-package deamon
+package daemon
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"github.com/tsukinoko-kun/netest/internal/networktest"
 	"github.com/tsukinoko-kun/netest/internal/server"
+	"log"
 	"sync/atomic"
 	"time"
 

@@ -1,65 +1,65 @@
 package cmd
 
 import (
-	"github.com/tsukinoko-kun/netest/internal/deamon"
+	"github.com/tsukinoko-kun/netest/internal/daemon"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	deamonCmd = &cobra.Command{
-		Use:     "deamon",
+	daemonCmd = &cobra.Command{
+		Use:     "daemon",
 		Aliases: []string{"service"},
-		Short:   "Manage the deamon",
+		Short:   "Manage the daemon",
 	}
 
-	deamonInstallCmd = &cobra.Command{
+	daemonInstallCmd = &cobra.Command{
 		Use:   "install",
-		Short: "Install the deamon",
+		Short: "Install the daemon",
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("addr") {
 				addr, _ := cmd.Flags().GetString("addr")
-				deamon.Addr = addr
+				daemon.Addr = addr
 			}
 
-			deamon.Install()
+			daemon.Install()
 		},
 	}
 
-	deamonUninstallCmd = &cobra.Command{
+	daemonUninstallCmd = &cobra.Command{
 		Use:   "uninstall",
-		Short: "Uninstall the deamon",
+		Short: "Uninstall the daemon",
 		Run: func(cmd *cobra.Command, args []string) {
-			deamon.Uninstall()
+			daemon.Uninstall()
 		},
 	}
 
-	deamonStartCmd = &cobra.Command{
+	daemonStartCmd = &cobra.Command{
 		Use:   "start",
-		Short: "Start the deamon",
+		Short: "Start the daemon",
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("addr") {
 				addr, _ := cmd.Flags().GetString("addr")
-				deamon.Addr = addr
+				daemon.Addr = addr
 			}
 
-			deamon.Start()
+			daemon.Start()
 		},
 	}
 
-	deamonStopCmd = &cobra.Command{
+	daemonStopCmd = &cobra.Command{
 		Use:   "stop",
-		Short: "Stop the deamon",
+		Short: "Stop the daemon",
 		Run: func(cmd *cobra.Command, args []string) {
-			deamon.Stop()
+			daemon.Stop()
 		},
 	}
 
-	deamonStatusCmd = &cobra.Command{
+	daemonStatusCmd = &cobra.Command{
 		Use:   "status",
-		Short: "Status of the deamon",
+		Short: "Status of the daemon",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			status, err := deamon.StatusString()
+			status, err := daemon.StatusString()
 			if err != nil {
 				return err
 			}
@@ -68,29 +68,29 @@ var (
 		},
 	}
 
-	deamonRunCmd = &cobra.Command{
+	daemonRunCmd = &cobra.Command{
 		Use:    "run",
 		Hidden: true,
-		Short:  "Run the deamon",
+		Short:  "Run the daemon",
 		Run: func(cmd *cobra.Command, args []string) {
 			if cmd.Flags().Changed("addr") {
 				addr, _ := cmd.Flags().GetString("addr")
-				deamon.Addr = addr
+				daemon.Addr = addr
 			}
-			deamon.Run()
+			daemon.Run()
 		},
 	}
 )
 
 func init() {
-	deamonCmd.AddCommand(deamonInstallCmd)
-	deamonCmd.AddCommand(deamonUninstallCmd)
-	deamonCmd.AddCommand(deamonStartCmd)
-	deamonCmd.AddCommand(deamonStopCmd)
-	deamonCmd.AddCommand(deamonStatusCmd)
-	deamonCmd.AddCommand(deamonRunCmd)
-	deamonInstallCmd.Flags().String("addr", "", "Listening address")
-	deamonRunCmd.Flags().String("addr", "", "Listening address")
-	deamonStartCmd.Flags().String("addr", "", "Listening address")
-	rootCmd.AddCommand(deamonCmd)
+	daemonCmd.AddCommand(daemonInstallCmd)
+	daemonCmd.AddCommand(daemonUninstallCmd)
+	daemonCmd.AddCommand(daemonStartCmd)
+	daemonCmd.AddCommand(daemonStopCmd)
+	daemonCmd.AddCommand(daemonStatusCmd)
+	daemonCmd.AddCommand(daemonRunCmd)
+	daemonInstallCmd.Flags().String("addr", "", "Listening address")
+	daemonRunCmd.Flags().String("addr", "", "Listening address")
+	daemonStartCmd.Flags().String("addr", "", "Listening address")
+	rootCmd.AddCommand(daemonCmd)
 }
