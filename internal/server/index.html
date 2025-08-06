@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>NeTest</title>
+        <style>
+        :root {
+            color-scheme: light dark;
+        }
+        </style>
+    </head>
+    <body>
+        <h1>NeTest</h1>
+        <canvas id="speedChart"></canvas>
+        <canvas id="latencyChart"></canvas>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+        <script>
+            // Function to create the charts
+            async function createCharts() {
+              try {
+                // Fetch data from API
+                const response = await fetch("/api");
+                const data = await response.json();
+
+                // Extract and format data for Chart.js
+                const times = data.TestResults.map((result) => result.Time);
+                const downloadSpeeds = data.TestResults.map(
+                  (result) => result.Value.DownloadSpeed
+                );
+                const uploadSpeeds = data.TestResults.map(
+                  (result) => result.Value.UploadSpeed
+                );
+                const latencies = data.TestResults.map((result) => result.Value.Latency/1000000);
+                const jitters = data.TestResults.map((result) => result.Value.Jitter/1000000);
+
+                // --- Speed Chart Configuration ---
+                const speedCtx = document.getElementById("speedChart").getContext("2d");
+                const speedChart = new Chart(speedCtx, {
+                  type: "line",
+                  data: {
+                    labels: times,
+                    datasets: [
+                      {
+                        label: "Download Speed (Mbps)",
+                        data: downloadSpeeds,
+                        borderColor: "rgb(75, 192, 192)",
+                        backgroundColor: "rgba(75, 192, 192, 0.2)",
+                        tension: 0.1,
+                      },
+                      {
+                        label: "Upload Speed (Mbps)",
+                        data: uploadSpeeds,
+                        borderColor: "rgb(255, 99, 132)",
+                        backgroundColor: "rgba(255, 99, 132, 0.2)",
+                        tension: 0.1,
+                      },
+                    ],
+                  },
+                  options: {
+                    responsive: true,
+                    plugins: {
+                      title: {
+                        display: true,
+                        text: "Internet Speed Test Results",
+                      },
+                      legend: {
+                        position: "top",
+                      },
+                    },
+                    scales: {
+                      x: {
+                        type: "time",
+                        time: {
+                          // Remove parser - let Chart.js handle ISO 8601 automatically
+                          tooltipFormat: "MMM dd, yyyy HH:mm:ss",
+                          displayFormats: {
+                            hour: "MMM dd HH:mm",
+                            minute: "HH:mm",
+                            second: "HH:mm:ss",
+                          },
+                        },
+                        title: {
+                          display: true,
+                          text: "Time",
+                        },
+                      },
+                      y: {
+                        title: {
+                          display: true,
+                          text: "Speed (Mbps)",
+                        },
+                        beginAtZero: true,
+                      },
+                    },
+                  },
+                });
+
+                // --- Latency/Jitter Chart Configuration ---
+                const latencyCtx = document
+                  .getElementById("latencyChart")
+                  .getContext("2d");
+                const latencyChart = new Chart(latencyCtx, {
+                  type: "line",
+                  data: {
+                    labels: times,
+                    datasets: [
+                      {
+                        label: "Latency (ms)",
+                        data: latencies,
+                        borderColor: "rgb(54, 162, 235)",
+                        backgroundColor: "rgba(54, 162, 235, 0.2)",
+                        tension: 0.1,
+                      },
+                      {
+                        label: "Jitter (ms)",
+                        data: jitters,
+                        borderColor: "rgb(255, 206, 86)",
+                        backgroundColor: "rgba(255, 206, 86, 0.2)",
+                        tension: 0.1,
+                      },
+                    ],
+                  },
+                  options: {
+                    responsive: true,
+                    plugins: {
+                      title: {
+                        display: true,
+                        text: "Network Latency & Jitter",
+                      },
+                      legend: {
+                        position: "top",
+                      },
+                    },
+                    scales: {
+                      x: {
+                        type: "time",
+                        time: {
+                          // Remove parser - let Chart.js handle ISO 8601 automatically
+                          tooltipFormat: "MMM dd, yyyy HH:mm:ss",
+                          displayFormats: {
+                            hour: "MMM dd HH:mm",
+                            minute: "HH:mm",
+                            second: "HH:mm:ss",
+                          },
+                        },
+                        title: {
+                          display: true,
+                          text: "Time",
+                        },
+                      },
+                      y: {
+                        title: {
+                          display: true,
+                          text: "Time (ms)",
+                        },
+                        beginAtZero: true,
+                      },
+                    },
+                  },
+                });
+              } catch (error) {
+                console.error("Error fetching or displaying data:", error);
+              }
+            }
+
+            // Call the function when the page loads
+            document.addEventListener("DOMContentLoaded", createCharts);
+        </script>
+    </body>
+</html>
