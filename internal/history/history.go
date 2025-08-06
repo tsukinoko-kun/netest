@@ -41,11 +41,10 @@ func Track[T any](v T) error {
 }
 
 func getHistoryFile() string {
-	dir := getHistoryDir()
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		_ = os.MkdirAll(dir, 0755)
+	if _, err := os.Stat(historyDir); os.IsNotExist(err) {
+		_ = os.MkdirAll(historyDir, 0755)
 	}
-	return filepath.Join(dir, "history")
+	return filepath.Join(historyDir, "history")
 }
 
 func Retrieve[T any]() ([]HistoryEntry[T], error) {
