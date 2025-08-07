@@ -65,7 +65,14 @@ func Run(database *db.DB) error {
 		results.UploadSpeed = uploadSpeed
 	}
 
-	if err := db.Track(database, results); err != nil {
+	dbResults := db.TestResults{
+		DownloadSpeed: results.DownloadSpeed,
+		UploadSpeed:   results.UploadSpeed,
+		Latency:       results.Latency,
+		PacketLoss:    results.PacketLoss,
+		Jitter:        results.Jitter,
+	}
+	if err := db.Track(database, dbResults); err != nil {
 		errs = append(errs, fmt.Errorf("failed to track results: %w", err))
 	}
 

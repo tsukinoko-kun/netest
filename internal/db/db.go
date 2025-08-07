@@ -2,7 +2,6 @@ package db
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,14 +10,22 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+type TestResults struct {
+	DownloadSpeed float64       `json:"download_speed"`
+	UploadSpeed   float64       `json:"upload_speed"`
+	Latency       time.Duration `json:"latency"`
+	PacketLoss    float64       `json:"packet_loss"`
+	Jitter        time.Duration `json:"jitter"`
+}
+
 type DB struct {
 	conn *sql.DB
 }
 
-type HistoryEntry[T any] struct {
-	ID    int64     `json:"id"`
-	Value T         `json:"value"`
-	Time  time.Time `json:"time"`
+type HistoryEntry struct {
+	ID    int64       `json:"id"`
+	Value TestResults `json:"value"`
+	Time  time.Time   `json:"time"`
 }
 
 func New() (*DB, error) {
@@ -54,7 +61,11 @@ func (db *DB) createTables() error {
 	query := `
 	CREATE TABLE IF NOT EXISTS history_entries (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		value_json TEXT NOT NULL,
+		download_speed REAL NOT NULL,
+		upload_speed REAL NOT NULL,
+		latency_ns INTEGER NOT NULL,
+		packet_loss REAL NOT NULL,
+		jitter_ns INTEGER NOT NULL,
 		timestamp TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -69,38 +80,40 @@ func (db *DB) createTables() error {
 	return nil
 }
 
-func Insert[T any](db *DB, value T, timestamp time.Time) error {
-	valueJSON, err := json.Marshal(value)
-	if err != nil {
-		return fmt.Errorf("failed to marshal value to JSON: %w", err)
-	}
-
+func Insert(db *DB, value TestResults, timestamp time.Time) error {
 	// Store timestamp in UTC as RFC3339 format for consistent timezone handling
 	timestampStr := timestamp.UTC().Format(time.RFC3339Nano)
 
-	query := `INSERT INTO history_entries (value_json, timestamp) VALUES (?, ?)`
-	if _, err := db.conn.Exec(query, string(valueJSON), timestampStr); err != nil {
+	query := `INSERT INTO history_entries (download_speed, upload_speed, latency_ns, packet_loss, jitter_ns, timestamp) VALUES (?, ?, ?, ?, ?, ?)`
+	if _, err := db.conn.Exec(query,
+		value.DownloadSpeed,
+		value.UploadSpeed,
+		value.Latency.Nanoseconds(),
+		value.PacketLoss,
+		value.Jitter.Nanoseconds(),
+		timestampStr); err != nil {
 		return fmt.Errorf("failed to insert history entry with timestamp %s: %w", timestampStr, err)
 	}
 
 	return nil
 }
 
-func RetrieveAll[T any](db *DB) ([]HistoryEntry[T], error) {
-	query := `SELECT id, value_json, timestamp FROM history_entries ORDER BY timestamp ASC`
+func RetrieveAll(db *DB) ([]HistoryEntry, error) {
+	query := `SELECT id, download_speed, upload_speed, latency_ns, packet_loss, jitter_ns, timestamp FROM history_entries ORDER BY timestamp ASC`
 	rows, err := db.conn.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query history entries: %w", err)
 	}
 	defer rows.Close()
 
-	var entries []HistoryEntry[T]
+	var entries []HistoryEntry
 	for rows.Next() {
 		var id int64
-		var valueJSON string
+		var downloadSpeed, uploadSpeed, packetLoss float64
+		var latencyNs, jitterNs int64
 		var timestampStr string
 
-		if err := rows.Scan(&id, &valueJSON, &timestampStr); err != nil {
+		if err := rows.Scan(&id, &downloadSpeed, &uploadSpeed, &latencyNs, &packetLoss, &jitterNs, &timestampStr); err != nil {
 			return nil, fmt.Errorf("failed to scan history entry row: %w", err)
 		}
 
@@ -110,12 +123,15 @@ func RetrieveAll[T any](db *DB) ([]HistoryEntry[T], error) {
 			return nil, fmt.Errorf("failed to parse timestamp %s: %w", timestampStr, err)
 		}
 
-		var value T
-		if err := json.Unmarshal([]byte(valueJSON), &value); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal JSON value for entry ID %d: %w", id, err)
+		value := TestResults{
+			DownloadSpeed: downloadSpeed,
+			UploadSpeed:   uploadSpeed,
+			Latency:       time.Duration(latencyNs),
+			PacketLoss:    packetLoss,
+			Jitter:        time.Duration(jitterNs),
 		}
 
-		entries = append(entries, HistoryEntry[T]{
+		entries = append(entries, HistoryEntry{
 			ID:    id,
 			Value: value,
 			Time:  timestamp,
@@ -137,7 +153,7 @@ func (db *DB) DeleteAll() error {
 	return nil
 }
 
-func ReplaceAll[T any](db *DB, entries []HistoryEntry[T]) error {
+func ReplaceAll(db *DB, entries []HistoryEntry) error {
 	tx, err := db.conn.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for replacing all entries: %w", err)
@@ -150,20 +166,21 @@ func ReplaceAll[T any](db *DB, entries []HistoryEntry[T]) error {
 	}
 
 	// Insert new entries
-	stmt, err := tx.Prepare(`INSERT INTO history_entries (value_json, timestamp) VALUES (?, ?)`)
+	stmt, err := tx.Prepare(`INSERT INTO history_entries (download_speed, upload_speed, latency_ns, packet_loss, jitter_ns, timestamp) VALUES (?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare insert statement in transaction: %w", err)
 	}
 	defer stmt.Close()
 
 	for i, entry := range entries {
-		valueJSON, err := json.Marshal(entry.Value)
-		if err != nil {
-			return fmt.Errorf("failed to marshal value to JSON for entry %d: %w", i, err)
-		}
-
 		timestampStr := entry.Time.UTC().Format(time.RFC3339Nano)
-		if _, err := stmt.Exec(string(valueJSON), timestampStr); err != nil {
+		if _, err := stmt.Exec(
+			entry.Value.DownloadSpeed,
+			entry.Value.UploadSpeed,
+			entry.Value.Latency.Nanoseconds(),
+			entry.Value.PacketLoss,
+			entry.Value.Jitter.Nanoseconds(),
+			timestampStr); err != nil {
 			return fmt.Errorf("failed to insert entry %d with timestamp %s in transaction: %w", i, timestampStr, err)
 		}
 	}
@@ -184,7 +201,7 @@ func (db *DB) BeginTx() (*sql.Tx, error) {
 }
 
 // Track adds a new entry to the database
-func Track[T any](db *DB, value T) error {
+func Track(db *DB, value TestResults) error {
 	now := time.Now()
 	if err := Insert(db, value, now); err != nil {
 		return fmt.Errorf("failed to track entry at %s: %w", now.Format(time.RFC3339), err)
@@ -193,8 +210,8 @@ func Track[T any](db *DB, value T) error {
 }
 
 // Summarize groups history entries by time periods and stores them transactionally
-func Summarize[T any](db *DB, join func(entries []HistoryEntry[T]) HistoryEntry[T]) error {
-	entries, err := RetrieveAll[T](db)
+func Summarize(db *DB, join func(entries []HistoryEntry) HistoryEntry) error {
+	entries, err := RetrieveAll(db)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve entries for summarization: %w", err)
 	}
@@ -204,8 +221,8 @@ func Summarize[T any](db *DB, join func(entries []HistoryEntry[T]) HistoryEntry[
 	lastMonth := now.AddDate(0, -1, 0)
 	threeMonthsAgo := now.AddDate(0, -3, 0)
 
-	var result []HistoryEntry[T]
-	var currentGroup []HistoryEntry[T]
+	var result []HistoryEntry
+	var currentGroup []HistoryEntry
 	var currentGroupKey string
 
 	for _, entry := range entries {
@@ -263,18 +280,18 @@ func Summarize[T any](db *DB, join func(entries []HistoryEntry[T]) HistoryEntry[
 }
 
 // ExtractValue extracts the value from a history entry
-func ExtractValue[T any](entry HistoryEntry[T]) T {
+func ExtractValue(entry HistoryEntry) TestResults {
 	return entry.Value
 }
 
 // ExtractTime extracts the time from a history entry
-func ExtractTime[T any](entry HistoryEntry[T]) time.Time {
+func ExtractTime(entry HistoryEntry) time.Time {
 	return entry.Time
 }
 
 // Unpack extracts values and median time from a slice of history entries
-func Unpack[T any](entries []HistoryEntry[T]) ([]T, time.Time) {
-	result := make([]T, len(entries))
+func Unpack(entries []HistoryEntry) ([]TestResults, time.Time) {
+	result := make([]TestResults, len(entries))
 	for i, e := range entries {
 		result[i] = e.Value
 	}

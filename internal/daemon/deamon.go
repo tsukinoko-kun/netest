@@ -83,9 +83,9 @@ func (p *program) Stop(s service.Service) error {
 }
 
 // joinNetworkTestResults combines multiple network test results into one
-func joinNetworkTestResults(entries []db.HistoryEntry[networktest.TestResults]) db.HistoryEntry[networktest.TestResults] {
+func joinNetworkTestResults(entries []db.HistoryEntry) db.HistoryEntry {
 	if len(entries) == 0 {
-		return db.HistoryEntry[networktest.TestResults]{}
+		return db.HistoryEntry{}
 	}
 	if len(entries) == 1 {
 		return entries[0]
@@ -94,16 +94,29 @@ func joinNetworkTestResults(entries []db.HistoryEntry[networktest.TestResults]) 
 	// Extract just the values for median calculation
 	results := make([]networktest.TestResults, len(entries))
 	for i, entry := range entries {
-		results[i] = entry.Value
+		// Convert db.TestResults to networktest.TestResults
+		results[i] = networktest.TestResults{
+			DownloadSpeed: entry.Value.DownloadSpeed,
+			UploadSpeed:   entry.Value.UploadSpeed,
+			Latency:       entry.Value.Latency,
+			PacketLoss:    entry.Value.PacketLoss,
+			Jitter:        entry.Value.Jitter,
+		}
 	}
 
 	// Use the median function from networktest package
 	medianResult := networktest.Median(results)
 
-	// Use the median time from the entries
-	return db.HistoryEntry[networktest.TestResults]{
-		Value: medianResult,
-		Time:  entries[len(entries)/2].Time,
+	// Convert back to db.TestResults and use the median time from the entries
+	return db.HistoryEntry{
+		Value: db.TestResults{
+			DownloadSpeed: medianResult.DownloadSpeed,
+			UploadSpeed:   medianResult.UploadSpeed,
+			Latency:       medianResult.Latency,
+			PacketLoss:    medianResult.PacketLoss,
+			Jitter:        medianResult.Jitter,
+		},
+		Time: entries[len(entries)/2].Time,
 	}
 }
 

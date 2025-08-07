@@ -5,10 +5,10 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"github.com/tsukinoko-kun/netest/internal/db"
-	"github.com/tsukinoko-kun/netest/internal/networktest"
 	"net"
 	"net/http"
+
+	"github.com/tsukinoko-kun/netest/internal/db"
 )
 
 type Server struct {
@@ -54,11 +54,11 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type apiResponse struct {
-	TestResults []db.HistoryEntry[networktest.TestResults] `json:"test_results"`
+	TestResults []db.HistoryEntry `json:"test_results"`
 }
 
 func (s *Server) apiHandler(w http.ResponseWriter, r *http.Request) {
-	entries, err := db.RetrieveAll[networktest.TestResults](s.database)
+	entries, err := db.RetrieveAll(s.database)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve test results: %v", err), http.StatusInternalServerError)
 		return

@@ -3,15 +3,14 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/tsukinoko-kun/netest/internal/db"
-	"github.com/tsukinoko-kun/netest/internal/networktest"
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/tsukinoko-kun/netest/internal/db"
 )
 
 type dataResponse struct {
-	TestResults []db.HistoryEntry[networktest.TestResults] `json:"test_results"`
+	TestResults []db.HistoryEntry `json:"test_results"`
 }
 
 var dataCmd = &cobra.Command{
@@ -24,7 +23,7 @@ var dataCmd = &cobra.Command{
 		}
 		defer database.Close()
 
-		entries, err := db.RetrieveAll[networktest.TestResults](database)
+		entries, err := db.RetrieveAll(database)
 		if err != nil {
 			return fmt.Errorf("failed to retrieve test results: %w", err)
 		}
@@ -44,4 +43,3 @@ var dataCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(dataCmd)
 }
-
