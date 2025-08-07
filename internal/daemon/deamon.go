@@ -4,11 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/tsukinoko-kun/netest/internal/networktest"
-	"github.com/tsukinoko-kun/netest/internal/server"
 	"log"
 	"sync/atomic"
 	"time"
+
+	"github.com/tsukinoko-kun/netest/internal/history"
+	mymath "github.com/tsukinoko-kun/netest/internal/math"
+	"github.com/tsukinoko-kun/netest/internal/networktest"
+	"github.com/tsukinoko-kun/netest/internal/server"
+	myslices "github.com/tsukinoko-kun/netest/internal/slices"
 
 	"github.com/kardianos/service"
 )
@@ -45,10 +49,27 @@ func (p *program) Start(s service.Service) error {
 
 func (p *program) loop() {
 	for p.running.Load() {
-		time.Sleep(15 * time.Minute)
+		time.Sleep(30 * time.Minute)
 		if err := networktest.Run(); err != nil {
 			_ = logger.Error(err)
 		}
+		history.Summarize(joinHistoryEntry)
+	}
+}
+
+func joinHistoryEntry(entries []history.HistoryEntry[networktest.TestResults]) history.HistoryEntry[networktest.TestResults] {
+	if len(entries) == 0 {
+		return history.HistoryEntry[networktest.TestResults]{
+			networktest.TestResults{},
+			time.Now(),
+		}
+	}
+	medianTestResult := networktest.Median(myslices.Map(entries, history.ExtractValue))
+	medianTime := mymath.MedianTime(myslices.Map(entries, history.ExtractTime))
+
+	return history.HistoryEntry[networktest.TestResults]{
+		medianTestResult,
+		medianTime,
 	}
 }
 

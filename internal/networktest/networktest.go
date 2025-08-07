@@ -8,10 +8,12 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"github.com/tsukinoko-kun/netest/internal/history"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/tsukinoko-kun/netest/internal/history"
+	mymath "github.com/tsukinoko-kun/netest/internal/math"
 )
 
 const (
@@ -74,6 +76,46 @@ func Run() error {
 		return errors.Join(errs...)
 	}
 	return nil
+}
+
+func Median(results []TestResults) TestResults {
+	downloadSpeeds := make([]float64, len(results))
+	for i, r := range results {
+		downloadSpeeds[i] = r.DownloadSpeed
+	}
+	medianDownloadSpeed := mymath.Median(downloadSpeeds)
+
+	uploadSpeeds := make([]float64, len(results))
+	for i, r := range results {
+		uploadSpeeds[i] = r.UploadSpeed
+	}
+	medianUploadSpeed := mymath.Median(uploadSpeeds)
+
+	latencies := make([]time.Duration, len(results))
+	for i, r := range results {
+		latencies[i] = r.Latency
+	}
+	medianLatency := mymath.Median(latencies)
+
+	packetLosses := make([]float64, len(results))
+	for i, r := range results {
+		packetLosses[i] = r.PacketLoss
+	}
+	medianPacketLoss := mymath.Median(packetLosses)
+
+	jitters := make([]time.Duration, len(results))
+	for i, r := range results {
+		jitters[i] = r.Jitter
+	}
+	medianJitter := mymath.Median(jitters)
+
+	return TestResults{
+		DownloadSpeed: medianDownloadSpeed,
+		UploadSpeed:   medianUploadSpeed,
+		Latency:       medianLatency,
+		PacketLoss:    medianPacketLoss,
+		Jitter:        medianJitter,
+	}
 }
 
 func testLatency() (avgLatency, jitter time.Duration, packetLoss float64, err error) {
