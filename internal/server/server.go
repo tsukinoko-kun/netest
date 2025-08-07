@@ -54,7 +54,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type apiResponse struct {
-	TestResults []db.HistoryEntry[networktest.TestResults] `json:"testResults"`
+	TestResults []db.HistoryEntry[networktest.TestResults] `json:"test_results"`
 }
 
 func (s *Server) apiHandler(w http.ResponseWriter, r *http.Request) {

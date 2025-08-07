@@ -25,15 +25,15 @@
                 const data = await response.json();
 
                 // Extract and format data for Chart.js
-                const times = data.TestResults.map((result) => result.Time);
-                const downloadSpeeds = data.TestResults.map(
-                  (result) => result.Value.DownloadSpeed
+                const times = data.test_results.map((result) => result.time);
+                const downloadSpeeds = data.test_results.map(
+                  (result) => result.value.download_speed
                 );
-                const uploadSpeeds = data.TestResults.map(
-                  (result) => result.Value.UploadSpeed
+                const uploadSpeeds = data.test_results.map(
+                  (result) => result.value.upload_speed
                 );
-                const latencies = data.TestResults.map((result) => result.Value.Latency/1000000);
-                const jitters = data.TestResults.map((result) => result.Value.Jitter/1000000);
+                const latencies = data.test_results.map((result) => result.value.latency/1000000);
+                const jitters = data.test_results.map((result) => result.value.jitter/1000000);
 
                 // --- Speed Chart Configuration ---
                 const speedCtx = document.getElementById("speedChart").getContext("2d");

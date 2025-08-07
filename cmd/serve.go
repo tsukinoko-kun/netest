@@ -15,7 +15,7 @@ import (
 var serveCmd = &cobra.Command{
 	Use: "serve [address]",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		addr := ":4321"
+		addr := ":8111"
 		if len(args) > 0 {
 			addr = args[0]
 		}

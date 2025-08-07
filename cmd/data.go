@@ -11,7 +11,7 @@ import (
 )
 
 type dataResponse struct {
-	TestResults []db.HistoryEntry[networktest.TestResults] `json:"testResults"`
+	TestResults []db.HistoryEntry[networktest.TestResults] `json:"test_results"`
 }
 
 var dataCmd = &cobra.Command{

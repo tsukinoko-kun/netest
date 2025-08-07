@@ -28,11 +28,11 @@ const (
 )
 
 type TestResults struct {
-	DownloadSpeed float64       // Mbps
-	UploadSpeed   float64       // Mbps
-	Latency       time.Duration // Average latency
-	PacketLoss    float64       // Percentage
-	Jitter        time.Duration // Latency variation
+	DownloadSpeed float64       `json:"download_speed"` // Mbps
+	UploadSpeed   float64       `json:"upload_speed"`   // Mbps
+	Latency       time.Duration `json:"latency"`        // Average latency
+	PacketLoss    float64       `json:"packet_loss"`    // Percentage
+	Jitter        time.Duration `json:"jitter"`         // Latency variation
 }
 
 func Run(database *db.DB) error {
