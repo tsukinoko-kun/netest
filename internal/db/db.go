@@ -21,30 +21,20 @@ type HistoryEntry[T any] struct {
 	Time  time.Time `json:"time"`
 }
 
-var historyDir string
-
-func init() {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		panic(fmt.Errorf("failed to get user home directory: %w", err))
-	}
-	historyDir = filepath.Join(homeDir, ".netest")
-}
-
 func New() (*DB, error) {
-	if err := os.MkdirAll(historyDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create history directory %s: %w", historyDir, err)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create history directory %s: %w", dataDir, err)
 	}
 
-	dbPath := filepath.Join(historyDir, "history.db")
-	conn, err := sql.Open("sqlite", dbPath)
+	filePath := filepath.Join(dataDir, "history.db")
+	conn, err := sql.Open("sqlite", filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open SQLite database at %s: %w", dbPath, err)
+		return nil, fmt.Errorf("failed to open SQLite database at %s: %w", filePath, err)
 	}
 
 	db := &DB{conn: conn}
 	if err := db.createTables(); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("failed to create database tables: %w", err)
 	}
 

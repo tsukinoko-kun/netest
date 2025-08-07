@@ -47,7 +47,6 @@ func Run(database *db.DB) error {
 		results.Latency = latency
 		results.Jitter = jitter
 		results.PacketLoss = packetLoss
-		fmt.Printf("Latency: %v (jitter: %v), Packet loss: %.1f%%\n", latency, jitter, packetLoss)
 	}
 
 	// Test download speed
@@ -56,7 +55,6 @@ func Run(database *db.DB) error {
 		errs = append(errs, fmt.Errorf("download test failed: %w", err))
 	} else {
 		results.DownloadSpeed = downloadSpeed
-		fmt.Printf("Download speed: %.2f Mbps\n", downloadSpeed)
 	}
 
 	// Test upload speed
@@ -65,7 +63,6 @@ func Run(database *db.DB) error {
 		errs = append(errs, fmt.Errorf("upload test failed: %w", err))
 	} else {
 		results.UploadSpeed = uploadSpeed
-		fmt.Printf("Upload speed: %.2f Mbps\n", uploadSpeed)
 	}
 
 	if err := db.Track(database, results); err != nil {
