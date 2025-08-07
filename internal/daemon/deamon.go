@@ -8,11 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tsukinoko-kun/netest/internal/history"
-	mymath "github.com/tsukinoko-kun/netest/internal/math"
+	"github.com/tsukinoko-kun/netest/internal/db"
 	"github.com/tsukinoko-kun/netest/internal/networktest"
 	"github.com/tsukinoko-kun/netest/internal/server"
-	myslices "github.com/tsukinoko-kun/netest/internal/slices"
 
 	"github.com/kardianos/service"
 )
@@ -24,8 +22,9 @@ var (
 
 type (
 	program struct {
-		running atomic.Bool
-		srv     *server.Server
+		running  atomic.Bool
+		srv      *server.Server
+		database *db.DB
 	}
 )
 
@@ -33,10 +32,18 @@ var Addr string
 
 func (p *program) Start(s service.Service) error {
 	_ = logger.Info("netest daemon starting")
+
+	// Initialize database
+	database, err := db.New()
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	p.database = database
+
 	p.running.Store(true)
 	go p.loop()
 	if Addr != "" {
-		srv, err := server.New(Addr)
+		srv, err := server.New(Addr, database)
 		if err != nil {
 			p.running.Store(false)
 			return err
@@ -50,26 +57,12 @@ func (p *program) Start(s service.Service) error {
 func (p *program) loop() {
 	for p.running.Load() {
 		time.Sleep(30 * time.Minute)
-		if err := networktest.Run(); err != nil {
+		if err := networktest.Run(p.database); err != nil {
 			_ = logger.Error(err)
 		}
-		history.Summarize(joinHistoryEntry)
-	}
-}
-
-func joinHistoryEntry(entries []history.HistoryEntry[networktest.TestResults]) history.HistoryEntry[networktest.TestResults] {
-	if len(entries) == 0 {
-		return history.HistoryEntry[networktest.TestResults]{
-			networktest.TestResults{},
-			time.Now(),
+		if err := db.Summarize(p.database, joinNetworkTestResults); err != nil {
+			_ = logger.Error(fmt.Errorf("failed to summarize results: %w", err))
 		}
-	}
-	medianTestResult := networktest.Median(myslices.Map(entries, history.ExtractValue))
-	medianTime := mymath.MedianTime(myslices.Map(entries, history.ExtractTime))
-
-	return history.HistoryEntry[networktest.TestResults]{
-		medianTestResult,
-		medianTime,
 	}
 }
 
@@ -82,7 +75,36 @@ func (p *program) Stop(s service.Service) error {
 		_ = p.srv.Stop(ctx)
 		p.srv = nil
 	}
+	if p.database != nil {
+		_ = p.database.Close()
+		p.database = nil
+	}
 	return nil
+}
+
+// joinNetworkTestResults combines multiple network test results into one
+func joinNetworkTestResults(entries []db.HistoryEntry[networktest.TestResults]) db.HistoryEntry[networktest.TestResults] {
+	if len(entries) == 0 {
+		return db.HistoryEntry[networktest.TestResults]{}
+	}
+	if len(entries) == 1 {
+		return entries[0]
+	}
+
+	// Extract just the values for median calculation
+	results := make([]networktest.TestResults, len(entries))
+	for i, entry := range entries {
+		results[i] = entry.Value
+	}
+
+	// Use the median function from networktest package
+	medianResult := networktest.Median(results)
+
+	// Use the median time from the entries
+	return db.HistoryEntry[networktest.TestResults]{
+		Value: medianResult,
+		Time:  entries[len(entries)/2].Time,
+	}
 }
 
 func initService() {

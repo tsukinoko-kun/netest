@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tsukinoko-kun/netest/internal/history"
+	"github.com/tsukinoko-kun/netest/internal/db"
 	mymath "github.com/tsukinoko-kun/netest/internal/math"
 )
 
@@ -35,7 +35,7 @@ type TestResults struct {
 	Jitter        time.Duration // Latency variation
 }
 
-func Run() error {
+func Run(database *db.DB) error {
 	results := TestResults{}
 	var errs []error
 
@@ -68,7 +68,7 @@ func Run() error {
 		fmt.Printf("Upload speed: %.2f Mbps\n", uploadSpeed)
 	}
 
-	if err := history.Track(results); err != nil {
+	if err := db.Track(database, results); err != nil {
 		errs = append(errs, fmt.Errorf("failed to track results: %w", err))
 	}
 

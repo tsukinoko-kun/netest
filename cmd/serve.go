@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/tsukinoko-kun/netest/internal/db"
 	"github.com/tsukinoko-kun/netest/internal/server"
 	"os"
 	"os/signal"
@@ -18,7 +19,14 @@ var serveCmd = &cobra.Command{
 		if len(args) > 0 {
 			addr = args[0]
 		}
-		s, err := server.New(addr)
+
+		database, err := db.New()
+		if err != nil {
+			return fmt.Errorf("failed to initialize database: %w", err)
+		}
+		defer database.Close()
+
+		s, err := server.New(addr, database)
 		if err != nil {
 			return err
 		}

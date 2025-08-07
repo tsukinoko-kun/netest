@@ -5,22 +5,25 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"github.com/tsukinoko-kun/netest/internal/db"
+	"github.com/tsukinoko-kun/netest/internal/networktest"
 	"net"
 	"net/http"
-	"github.com/tsukinoko-kun/netest/internal/history"
-	"github.com/tsukinoko-kun/netest/internal/networktest"
 )
 
 type Server struct {
-	ln  net.Listener
-	srv *http.Server
-	mux *http.ServeMux
+	ln       net.Listener
+	srv      *http.Server
+	mux      *http.ServeMux
+	database *db.DB
 }
 
-func New(addr string) (*Server, error) {
+func New(addr string, database *db.DB) (*Server, error) {
+	server := &Server{database: database}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", indexHandler)
-	mux.HandleFunc("/api", apiHandler)
+	mux.HandleFunc("/api", server.apiHandler)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: mux,
@@ -35,11 +38,11 @@ func New(addr string) (*Server, error) {
 		_ = ln.Close()
 	}()
 
-	return &Server{
-		ln,
-		srv,
-		mux,
-	}, nil
+	server.ln = ln
+	server.srv = srv
+	server.mux = mux
+
+	return server, nil
 }
 
 //go:embed index.html
@@ -51,19 +54,19 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type apiResponse struct {
-	TestResults []history.HistoryEntry[networktest.TestResults]
+	TestResults []db.HistoryEntry[networktest.TestResults] `json:"testResults"`
 }
 
-func apiHandler(w http.ResponseWriter, r *http.Request) {
-	enties, err := history.Retrieve[networktest.TestResults]()
+func (s *Server) apiHandler(w http.ResponseWriter, r *http.Request) {
+	entries, err := db.RetrieveAll[networktest.TestResults](s.database)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("failed to retrieve test results: %v", err), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	je := json.NewEncoder(w)
 	je.SetIndent("", "  ")
-	_ = je.Encode(apiResponse{enties})
+	_ = je.Encode(apiResponse{TestResults: entries})
 }
 
 func (s *Server) ListeningAddr() string {
