@@ -12,18 +12,15 @@ import (
 )
 
 type Server struct {
-	ln       net.Listener
-	srv      *http.Server
-	mux      *http.ServeMux
-	database *db.DB
+	ln  net.Listener
+	srv *http.Server
+	mux *http.ServeMux
 }
 
-func New(addr string, database *db.DB) (*Server, error) {
-	server := &Server{database: database}
-
+func New(addr string) (*Server, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", indexHandler)
-	mux.HandleFunc("/api", server.apiHandler)
+	mux.HandleFunc("/api", apiHandler)
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: mux,
@@ -33,14 +30,16 @@ func New(addr string, database *db.DB) (*Server, error) {
 		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
 
-	go func() {
-		_ = srv.Serve(ln)
-		_ = ln.Close()
-	}()
+	server := &Server{}
 
 	server.ln = ln
 	server.srv = srv
 	server.mux = mux
+
+	go func() {
+		_ = srv.Serve(ln)
+		_ = ln.Close()
+	}()
 
 	return server, nil
 }
@@ -57,15 +56,16 @@ type apiResponse struct {
 	TestResults []db.HistoryEntry `json:"test_results"`
 }
 
-func (s *Server) apiHandler(w http.ResponseWriter, r *http.Request) {
-	entries, err := db.RetrieveAll(s.database)
+func apiHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	q := db.Direct()
+	entries, err := q.GetAllHistoryEntries(ctx)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to retrieve test results: %v", err), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	je := json.NewEncoder(w)
-	je.SetIndent("", "  ")
 	_ = je.Encode(apiResponse{TestResults: entries})
 }
 

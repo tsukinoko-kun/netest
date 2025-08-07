@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/tsukinoko-kun/netest/internal/db"
-	mymath "github.com/tsukinoko-kun/netest/internal/math"
 )
 
 const (
@@ -27,16 +26,15 @@ const (
 	packetLossTestCount  = 20
 )
 
-type TestResults struct {
-	DownloadSpeed float64       `json:"download_speed"` // Mbps
-	UploadSpeed   float64       `json:"upload_speed"`   // Mbps
-	Latency       time.Duration `json:"latency"`        // Average latency
-	PacketLoss    float64       `json:"packet_loss"`    // Percentage
-	Jitter        time.Duration `json:"jitter"`         // Latency variation
-}
+func Run(ctx context.Context) (db.AddHistoryEntryParams, error) {
+	results := db.AddHistoryEntryParams{}
 
-func Run(database *db.DB) error {
-	results := TestResults{}
+	q, err := db.Begin(ctx)
+	if err != nil {
+		return results, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer q.Rollback()
+
 	var errs []error
 
 	// Test latency and packet loss
@@ -44,8 +42,8 @@ func Run(database *db.DB) error {
 	if err != nil {
 		errs = append(errs, fmt.Errorf("latency test failed: %w", err))
 	} else {
-		results.Latency = latency
-		results.Jitter = jitter
+		results.SetLatency(latency)
+		results.SetJitter(jitter)
 		results.PacketLoss = packetLoss
 	}
 
@@ -65,61 +63,19 @@ func Run(database *db.DB) error {
 		results.UploadSpeed = uploadSpeed
 	}
 
-	dbResults := db.TestResults{
-		DownloadSpeed: results.DownloadSpeed,
-		UploadSpeed:   results.UploadSpeed,
-		Latency:       results.Latency,
-		PacketLoss:    results.PacketLoss,
-		Jitter:        results.Jitter,
-	}
-	if err := db.Track(database, dbResults); err != nil {
-		errs = append(errs, fmt.Errorf("failed to track results: %w", err))
-	}
-
 	if len(errs) > 0 {
-		return errors.Join(errs...)
+		return results, errors.Join(errs...)
 	}
-	return nil
-}
 
-func Median(results []TestResults) TestResults {
-	downloadSpeeds := make([]float64, len(results))
-	for i, r := range results {
-		downloadSpeeds[i] = r.DownloadSpeed
+	if err := q.AddHistoryEntry(ctx, results); err != nil {
+		return results, fmt.Errorf("failed to add history entry: %w", err)
 	}
-	medianDownloadSpeed := mymath.Median(downloadSpeeds)
 
-	uploadSpeeds := make([]float64, len(results))
-	for i, r := range results {
-		uploadSpeeds[i] = r.UploadSpeed
+	if err := q.Commit(); err != nil {
+		return results, fmt.Errorf("failed to commit transaction: %w", err)
 	}
-	medianUploadSpeed := mymath.Median(uploadSpeeds)
 
-	latencies := make([]time.Duration, len(results))
-	for i, r := range results {
-		latencies[i] = r.Latency
-	}
-	medianLatency := mymath.Median(latencies)
-
-	packetLosses := make([]float64, len(results))
-	for i, r := range results {
-		packetLosses[i] = r.PacketLoss
-	}
-	medianPacketLoss := mymath.Median(packetLosses)
-
-	jitters := make([]time.Duration, len(results))
-	for i, r := range results {
-		jitters[i] = r.Jitter
-	}
-	medianJitter := mymath.Median(jitters)
-
-	return TestResults{
-		DownloadSpeed: medianDownloadSpeed,
-		UploadSpeed:   medianUploadSpeed,
-		Latency:       medianLatency,
-		PacketLoss:    medianPacketLoss,
-		Jitter:        medianJitter,
-	}
+	return results, nil
 }
 
 func testLatency() (avgLatency, jitter time.Duration, packetLoss float64, err error) {

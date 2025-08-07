@@ -23,17 +23,29 @@
                 // Fetch data from API
                 const response = await fetch("/api");
                 const data = await response.json();
+                
+                console.log("API Response:", data);
+                
+                // Handle different response structures
+                let testResults;
+                if (Array.isArray(data)) {
+                  testResults = data;
+                } else if (data.test_results && Array.isArray(data.test_results)) {
+                  testResults = data.test_results;
+                } else {
+                  throw new Error("Invalid API response structure");
+                }
 
                 // Extract and format data for Chart.js
-                const times = data.test_results.map((result) => result.time);
-                const downloadSpeeds = data.test_results.map(
-                  (result) => result.value.download_speed
+                const times = testResults.map((result) => result.timestamp);
+                const downloadSpeeds = testResults.map(
+                  (result) => result.download_speed
                 );
-                const uploadSpeeds = data.test_results.map(
-                  (result) => result.value.upload_speed
+                const uploadSpeeds = testResults.map(
+                  (result) => result.upload_speed
                 );
-                const latencies = data.test_results.map((result) => result.value.latency/1000000);
-                const jitters = data.test_results.map((result) => result.value.jitter/1000000);
+                const latencies = testResults.map((result) => result.latency_ms);
+                const jitters = testResults.map((result) => result.jitter_ms);
 
                 // --- Speed Chart Configuration ---
                 const speedCtx = document.getElementById("speedChart").getContext("2d");

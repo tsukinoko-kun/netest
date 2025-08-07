@@ -22,9 +22,8 @@ var (
 
 type (
 	program struct {
-		running  atomic.Bool
-		srv      *server.Server
-		database *db.DB
+		running atomic.Bool
+		srv     *server.Server
 	}
 )
 
@@ -33,17 +32,10 @@ var Addr string
 func (p *program) Start(s service.Service) error {
 	_ = logger.Info("netest daemon starting")
 
-	// Initialize database
-	database, err := db.New()
-	if err != nil {
-		return fmt.Errorf("failed to initialize database: %w", err)
-	}
-	p.database = database
-
 	p.running.Store(true)
 	go p.loop()
 	if Addr != "" {
-		srv, err := server.New(Addr, database)
+		srv, err := server.New(Addr)
 		if err != nil {
 			p.running.Store(false)
 			return err
@@ -57,11 +49,10 @@ func (p *program) Start(s service.Service) error {
 func (p *program) loop() {
 	for p.running.Load() {
 		time.Sleep(30 * time.Minute)
-		if err := networktest.Run(p.database); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := networktest.Run(ctx); err != nil {
 			_ = logger.Error(err)
-		}
-		if err := db.Summarize(p.database, joinNetworkTestResults); err != nil {
-			_ = logger.Error(fmt.Errorf("failed to summarize results: %w", err))
 		}
 	}
 }
@@ -75,49 +66,10 @@ func (p *program) Stop(s service.Service) error {
 		_ = p.srv.Stop(ctx)
 		p.srv = nil
 	}
-	if p.database != nil {
-		_ = p.database.Close()
-		p.database = nil
+	if err := db.Close(); err != nil {
+		_ = logger.Error(fmt.Errorf("failed to close database: %w", err))
 	}
 	return nil
-}
-
-// joinNetworkTestResults combines multiple network test results into one
-func joinNetworkTestResults(entries []db.HistoryEntry) db.HistoryEntry {
-	if len(entries) == 0 {
-		return db.HistoryEntry{}
-	}
-	if len(entries) == 1 {
-		return entries[0]
-	}
-
-	// Extract just the values for median calculation
-	results := make([]networktest.TestResults, len(entries))
-	for i, entry := range entries {
-		// Convert db.TestResults to networktest.TestResults
-		results[i] = networktest.TestResults{
-			DownloadSpeed: entry.Value.DownloadSpeed,
-			UploadSpeed:   entry.Value.UploadSpeed,
-			Latency:       entry.Value.Latency,
-			PacketLoss:    entry.Value.PacketLoss,
-			Jitter:        entry.Value.Jitter,
-		}
-	}
-
-	// Use the median function from networktest package
-	medianResult := networktest.Median(results)
-
-	// Convert back to db.TestResults and use the median time from the entries
-	return db.HistoryEntry{
-		Value: db.TestResults{
-			DownloadSpeed: medianResult.DownloadSpeed,
-			UploadSpeed:   medianResult.UploadSpeed,
-			Latency:       medianResult.Latency,
-			PacketLoss:    medianResult.PacketLoss,
-			Jitter:        medianResult.Jitter,
-		},
-		Time: entries[len(entries)/2].Time,
-	}
 }
 
 func initService() {

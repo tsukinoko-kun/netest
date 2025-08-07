@@ -9,26 +9,15 @@ import (
 	"github.com/tsukinoko-kun/netest/internal/db"
 )
 
-type dataResponse struct {
-	TestResults []db.HistoryEntry `json:"test_results"`
-}
-
 var dataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "Print all test data as JSON array to stdout",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		database, err := db.New()
-		if err != nil {
-			return fmt.Errorf("failed to initialize database: %w", err)
-		}
-		defer database.Close()
-
-		entries, err := db.RetrieveAll(database)
+		q := db.Direct()
+		response, err := q.GetAllHistoryEntries(cmd.Context())
 		if err != nil {
 			return fmt.Errorf("failed to retrieve test results: %w", err)
 		}
-
-		response := dataResponse{TestResults: entries}
 
 		encoder := json.NewEncoder(os.Stdout)
 		encoder.SetIndent("", "  ")
